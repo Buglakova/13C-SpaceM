@@ -1,0 +1,15 @@
+name: sciso_env
+channels:
+  - defaults
+  - conda-forge
+  - bioconda
+dependencies:
+  - isocor=2.2.0
+  - pyimzml=1.5.1
+  - scanpy=1.9.1
+  - jupyter
+  - pip
+  - pip:
+      - pyMSpec
+      - cpyMSpec
+      - -e .
