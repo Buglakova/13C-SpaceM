@@ -4,9 +4,14 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
+  - python=3.9
   - isocor=2.2.0
   - pyimzml=1.5.1
-  - scanpy=1.9.1
+  - scanpy=1.8.1
+  - matplotlib=3.6.2
+  - pandas=1.2.4
+  - scikit-learn=1.0.2
+  - scikit-image=0.19.2
   - jupyter
   - pip
   - pip:
