@@ -16,6 +16,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import confusion_matrix, plot_confusion_matrix, roc_curve, roc_auc_score
 
+import time
+from tqdm import tqdm
 
 x_width = 3.3
 y_width = 2.5
@@ -271,6 +273,57 @@ def fit_binomial_adata(adata):
                 mean_M, mean_p = calculate_mean(iso_dist_even)
                 adata.obs.loc[cell_idx, f"{ion}_mean_p"] = mean_p
                 adata.obs.loc[cell_idx, f"{ion}_mean_M"] = mean_M
+
+
+
+def fit_binomial_image(X, ion):
+    print("Ion:", ion)
+    
+    p = np.zeros(X.shape[1:])
+    uptake = np.zeros(X.shape[1:])
+    mean_p = np.zeros(X.shape[1:])
+    mean_M = np.zeros(X.shape[1:])
+    fit_success = np.zeros(X.shape[1:])
+    
+    start = time.time()
+    for iy, ix in tqdm(np.ndindex(X.shape[1:]), total = X.shape[1] * X.shape[2], desc="Fit binomial"):
+        if (iy % (X.shape[1] - 1) == 0):
+            end = time.time()
+            # print(f"{iy}, {ix} out of {X.shape}, {end - start} sec")
+            start = time.time()
+        
+        iso_dist = X[:, iy, ix]
+    
+        if ion.startswith("C18"):
+            x, n, param, success = fit_binomial(iso_dist, "C18")
+            if not success or np.allclose(iso_dist[3:], np.zeros_like(iso_dist[3:])):
+                param[0] = iso_dist[0]
+                param[1] = iso_dist[2] / iso_dist[0]
+                param[2] = None
+            p[iy, ix] = param[2]
+            uptake[iy, ix] = param[0]
+            # adata.obs.loc[cell_idx, f"{ion}_uptake_palmitate"] = param[1]
+            fit_success[iy, ix] = int(success)
+            # Estimate mean and p without fitting
+            iso_dist_even = iso_dist[2::2]
+            iso_dist_even[0] = 0
+            mean_M[iy, ix], mean_p[iy, ix] = calculate_mean(iso_dist_even)
+        else:
+            x, n, param, success = fit_binomial(iso_dist, "C16")
+            iso_dist_even = iso_dist[2::2]
+            if not success or np.allclose(iso_dist[1:], np.zeros_like(iso_dist[1:])):
+                param[0] = iso_dist[0]
+                param[1] = None
+            p[iy, ix] = param[1]
+            uptake[iy, ix] = param[0]
+            fit_success[iy, ix] = int(success)
+            # Estimate mean and p without fitting
+            iso_dist_even = iso_dist[2::2]
+            mean_M[iy, ix], mean_p[iy, ix] = calculate_mean(iso_dist_even)
+            
+    return p, uptake, mean_p, mean_M, fit_success
+    
+
             
             
 def train_classifier(adata, name_prefix, pos_label, plots_path, cond_col="condition"):
@@ -281,7 +334,7 @@ def train_classifier(adata, name_prefix, pos_label, plots_path, cond_col="condit
     y_test = adata.obs[cond_col].iloc[X_test_idx]
     # print(y_test)
 
-    clf = LogisticRegressionCV(random_state=0, max_iter=100000, verbose=1).fit(X_train, y_train)
+    clf = LogisticRegressionCV(random_state=0, max_iter=100000, verbose=0).fit(X_train, y_train)
     
     y_pred = clf.predict(X_test)
     
@@ -291,6 +344,48 @@ def train_classifier(adata, name_prefix, pos_label, plots_path, cond_col="condit
     plot_confusion_matrix(clf, X_test, y_test, cmap="magma")
     plt.savefig(plots_path / f"{name_prefix}_{cond_col}_confusion.png")
     plt.savefig(plots_path / f"{name_prefix}_{cond_col}_confusion.svg")
+    plt.show()
+    
+    fpr, tpr, thresholds = roc_curve(y_test, clf.predict_proba(X_test)[:, 0], pos_label=pos_label)
+    print("ROC AUC score: ", roc_auc_score(y_test, clf.predict_proba(X_test)[:, 1]))
+    plt.plot(fpr, tpr)
+    plt.xlabel("False positive")
+    plt.ylabel("True positive")
+    plt.plot((0, 1), (0, 1))
+    plt.title("ROC AUC score = %.2f"%roc_auc_score(y_test, clf.predict_proba(X_test)[:, 1]))
+    plt.savefig(plots_path / f"{name_prefix}_{cond_col}_roc.png")
+    plt.savefig(plots_path / f"{name_prefix}_{cond_col}_roc.svg")
+    
+    return clf
+
+
+
+def train_classifier_hypoxia_normoxia(adata, name_prefix, pos_label, plots_path, cond_col="condition", confusion_matrix_col="condition"):
+    X_train_idx, X_test_idx, y_train_idx, y_test_idx = train_test_split(range(len(adata)), range(len(adata)), random_state=42, test_size=0.3,  shuffle=True)
+    X_train = adata.layers["corr_norm"][X_train_idx, :]
+    y_train = adata.obs[cond_col].iloc[X_train_idx]
+    X_test = adata.layers["corr_norm"][X_test_idx, :]
+    y_test = adata.obs[cond_col].iloc[X_test_idx]
+    # print(y_test)
+
+    clf = LogisticRegressionCV(random_state=0, max_iter=100000, verbose=0).fit(X_train, y_train)
+    
+    y_pred = clf.predict(X_test)
+    
+    print("Accuracy: ", accuracy_score(y_test, y_pred))
+    
+    
+    plot_confusion_matrix(clf, X_test, y_test, cmap="magma")
+    plt.savefig(plots_path / f"{name_prefix}_{cond_col}_confusion.png")
+    plt.savefig(plots_path / f"{name_prefix}_{cond_col}_confusion.svg")
+    plt.show()
+    
+    label_dict = {"Normoxia": "low", "Hypoxia": "high"}
+    y_pred_gfp = [label_dict[pred] for pred in y_pred]
+    
+    ConfusionMatrixDisplay.from_predictions(y_pred_gfp, adata.obs[confusion_matrix_col].iloc[X_test_idx], cmap="magma")
+    plt.savefig(plots_path / f"{name_prefix}_{confusion_matrix_col}_confusion.png")
+    plt.savefig(plots_path / f"{name_prefix}_{confusion_matrix_col}_confusion.svg")
     plt.show()
     
     fpr, tpr, thresholds = roc_curve(y_test, clf.predict_proba(X_test)[:, 0], pos_label=pos_label)

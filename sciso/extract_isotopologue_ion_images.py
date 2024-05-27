@@ -103,9 +103,6 @@ def get_iso_ion_list(ion_list: pd.DataFrame):
 
 
 if __name__ == "__main__":
-    # python extract_isotopologue_ion_images.py /home/buglakova/work/data/lipid_isotope/spacem_data/04052021_AB_DKFZLabelled2_DHBpos_s25a30_100x100/ion_list.csv /home/buglakova/work/data/lipid_isotope/spacem_data/04052021_AB_DKFZLabelled2_DHBpos_s25a30_100x100/W5/MassSpectrometry/04052021_AB_DKFZ_S2_unlabelled_W5_DHBpos_s25a30_100x100.imzML /home/buglakova/work/data//lipid_isotope/spacem_data/04052021_AB_DKFZLabelled2_DHBpos_s25a30_100x100/W5/analysis/metaspace
-    # python extract_isotopologue_ion_images.py /home/buglakova/work/data/lipid_isotope/20210420_AB_DKFZLabeled/20210517_AB_DKFZLabeled_S3_W1-8_DANneg_s20a30_100x100_100-400_NCE25/ion_list_fa.csv /home/buglakova/work/data/lipid_isotope/20210420_AB_DKFZLabeled/20210517_AB_DKFZLabeled_S3_W1-8_DANneg_s20a30_100x100_100-400_NCE25/W5/MassSpectrometry/20210517_AB_DKFZLabeled_S3_W5_unlabeled_DANneg_s20a30_100x100_100-400_NCE25.imzML /home/buglakova/work/data/lipid_isotope/20210420_AB_DKFZLabeled/20210517_AB_DKFZLabeled_S3_W1-8_DANneg_s20a30_100x100_100-400_NCE25/W5/analysis/metaspace
-
     # Parse parameters
     parser = argparse.ArgumentParser(
         description="""Script to create list of isotopologues and extract ion images for them.

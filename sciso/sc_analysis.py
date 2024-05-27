@@ -5,6 +5,8 @@ import pandas as pd
 import argparse
 from pathlib import Path
 import json
+import time
+from tqdm import tqdm
 
 
 def apply_isocorr(ion: str, X: np.array):
@@ -49,6 +51,56 @@ def apply_isocorr(ion: str, X: np.array):
         X_corr_abs_ion[idx, :] = np.array(corrected_area)
         X_corr_norm_ion[idx, :] = np.array(iso_fraction)
         X_isocor_res[idx, :] = np.array(res)
+
+    return X_corr_abs_ion, X_corr_norm_ion, X_isocor_res
+
+
+def apply_isocorr_image(ion: str, X: np.array):
+    """
+    Use isocor to correct isotopologue distributions of certain ion for isotopologue abundances for an ion image.
+
+    Args:
+        ion: formula of the molecule, for which correction is done
+        X: 
+            matrix of raw isotopologue abundances NxHxW,
+            where HxW is the size of the image,
+            N should be equal to number of tracer atoms + 1.
+
+    Returns:
+        Tuple of np.arrays with the same shape as X:
+            X_corr_abs_ion - corrected distributions with the same sum of all peaks as before correction
+            X_corr_norm_ion - normalized corrected distributions, sum of all peak intensities == 1
+            X_isocor_res - residuals of isocor fitfor each peak
+    """
+    corrector_HR = isocor.mscorrectors.MetaboliteCorrectorFactory(
+        ion,
+        tracer="13C",
+        resolution=140000,
+        mz_of_resolution=200,
+        charge=-1,
+        correct_NA_tracer=True,
+    )
+    X_corr_abs_ion = np.zeros(X.shape)
+    X_corr_norm_ion = np.zeros(X.shape)
+    X_isocor_res = np.zeros(X.shape)
+    start = time.time()
+    for iy, ix in tqdm(np.ndindex(X.shape[1:]), total = X.shape[1] * X.shape[2], desc="Isocor"):
+        dist = X[:, iy, ix]
+        if (iy % (X.shape[1] - 1) == 0):
+            end = time.time()
+            # print(f"{iy} {ix} out of {X.shape}, {end - start} sec")
+            start = time.time()
+            
+        # Not do calculations for AMs only with 0s
+        if np.all(dist == 0):
+            corrected_area = np.zeros_like(dist)
+            iso_fraction = np.zeros_like(dist)
+            res = np.zeros_like(dist)
+        else:
+            corrected_area, iso_fraction, res, m_enr = corrector_HR.correct(dist)
+        X_corr_abs_ion[:, iy, ix] = np.array(corrected_area)
+        X_corr_norm_ion[:, iy, ix] = np.array(iso_fraction)
+        X_isocor_res[:, iy, ix] = np.array(res)
 
     return X_corr_abs_ion, X_corr_norm_ion, X_isocor_res
 

@@ -403,3 +403,32 @@ def search_imzml_for_database_peaks(
         imzml_path, db_with_centroids, tol_ppm, tol_mode, base_mz
     )
     return db_with_centroids, coords_df, peaks
+
+
+def extract_tic(imzml_path):
+    """ Extract TIC image from an imzML file
+    Args:
+        imzml_path: path to imzML
+
+    Returns:
+        Total ion current image
+    """
+    p = ImzMLParser(str(imzml_path), include_spectra_metadata='full')
+    
+    coords_df = pd.DataFrame(
+        p.coordinates, columns=["x", "y", "z"][: len(p.coordinates[0])], dtype="i"
+    )
+    coords_df["x"] -= np.min(coords_df.x)
+    coords_df["y"] -= np.min(coords_df.y)
+    
+    spectrum_metadata = p.spectrum_full_metadata
+    
+    # According to the imzML specification, TIC has tag MS:1000285
+    # https://github.com/alexandrovteam/pyimzML/pull/21
+    # https://peptideatlas.org/tmp/mzML1.1.0.html#referenceableParamGroup
+    tic = [spectrum_md["MS:1000285"] for spectrum_md in spectrum_metadata]
+    peaks_df = pd.DataFrame({"ints": tic, "mz": 0, "sp": range(len(tic))})
+    
+    _, tic_image = peaks_df_to_images(coords_df, peaks_df)
+    
+    return tic_image
